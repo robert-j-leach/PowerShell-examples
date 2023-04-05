@@ -1,0 +1,87 @@
+##############################################################
+# function Send_racadm_cmd
+#
+# This function runs the specified command passed in  
+# and returns the results that was captured from 
+# the command line. It returns a hash array that contains
+# STD_OUT and the reteun code from the command line program. 
+#
+# INPUT : $Update command - Any command
+#         $Update_Arguments - arguments to command
+# Return : hash value
+#          @{ Exit_code = $p.ExitCode; STD_OUT_VALUE = $p.StandardOutput.ReadToEnd()}
+#          where first value is exit status of command, second value is std out of command
+#
+# Globals used: NONE  
+##############################################################
+
+function Send_racadm_cmd
+{
+    param ( $Update_CMD,
+            $Update_Arguments )
+    try {
+        # Set up object and run it on command line
+    
+        $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+        $pinfo.FileName = $Update_CMD
+        $pinfo.RedirectStandardError = $true
+        $pinfo.RedirectStandardOutput = $true
+        $pinfo.UseShellExecute = $false
+        $pinfo.Arguments = $Update_Arguments
+        $p = New-Object System.Diagnostics.Process
+        $p.StartInfo = $pinfo
+        $p.Start() | Out-Null
+        $STD_OUT_VALUE = $p.StandardOutput.ReadToEnd() # The order matters
+                                                       # This is placed before exit to avoid a deadlock condition if buffer is filled
+         
+        $p.WaitForExit()
+    
+    
+        # Send results back to calling statment as a hash array
+        $Retrun_results = @{ Exit_code = $p.ExitCode; STD_OUT_VALUE  = $STD_OUT_VALUE }
+        return $Retrun_results
+
+        }
+        catch{
+            #Runtime error, return failed update
+            write-host ("Runtime error occured in function Send_racadm_cmd")
+            write-host ("Error was " + $_.Exception.message)
+            write-host ("Error Line Number = " +  $_.InvocationInfo.ScriptLineNumber )
+            # Set up exit coeds as failed
+            $Exit_code_error = 1
+            $STD_OUT_VALUE_error = "Failed"
+            $Retrun_results = @{ Exit_code = $Exit_code_error; STD_OUT_VALUE = $STD_OUT_VALUE_error}
+            return $Retrun_results
+        }
+        
+}
+
+#==================
+# Main
+#==================
+
+$IDRAC_IP = "10.0.0.190"
+$IDRAC_ADMIN = "root"
+$IDRAC_PASSWORD= "calvin"
+
+$RACADM_PATH = "C:\Program Files\Dell\SysMgt\iDRACTools\racadm"
+
+# Set up command to get date time
+$Update_CMD = $RACADM_PATH + "\" + "racadm.exe"
+$Update_Arguments = " -r " + $IDRAC_IP + " -u " + $IDRAC_ADMIN + " -p " + $IDRAC_PASSWORD + `
+                               " getsysinfo"  
+    
+    
+# Run command to get sys information
+$Update_status = Send_racadm_cmd $Update_CMD $Update_Arguments
+       
+if ( $Update_status["Exit_code"] -eq 1 ) {
+    # Could not get date/time from CMC
+     write-host "Could not get system information!"
+               
+}
+else{
+    # write "std out from racadm command"
+    write-host $Update_status["STD_OUT_VALUE"]
+
+} 
